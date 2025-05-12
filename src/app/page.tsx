@@ -1,13 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CourseInputForm from "@/components/CourseInputForm";
 import CoursePlanPreview from "@/components/CoursePlanPreview";
+import CourseList from "@/components/CourseList";
+import CourseUpload from "@/components/CourseUpload";
+import { CoursePlan } from "@/lib/types";
+import { mockCoursePlans, currentUser } from "@/lib/mock-data";
 
 export default function Home() {
-  const [generatedPlan, setGeneratedPlan] = useState({}); // Initialize with empty object instead of null
+  const [activeTab, setActiveTab] = useState("generate");
+  const [generatedPlan, setGeneratedPlan] = useState<CoursePlan | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [coursePlans, setCoursePlans] = useState<CoursePlan[]>(mockCoursePlans);
+  const [selectedCourse, setSelectedCourse] = useState<CoursePlan | null>(null);
 
   const handleGenerate = async (subject: string, department: string) => {
     setIsGenerating(true);
@@ -46,6 +54,23 @@ export default function Home() {
             "Online resources and databases",
             "Case studies and practical examples",
           ],
+          schedule: [
+            {
+              week: 1,
+              topic: "Introduction to the course",
+              activities: "Lecture, Group Discussion",
+            },
+            {
+              week: 2,
+              topic: "Fundamental concepts",
+              activities: "Lecture, Case Studies",
+            },
+            {
+              week: 3,
+              topic: "Theoretical frameworks",
+              activities: "Lecture, Group Activities",
+            },
+          ],
         };
 
         setGeneratedPlan(mockGeneratedPlan);
@@ -55,6 +80,57 @@ export default function Home() {
       console.error("Error generating course plan:", error);
       setIsGenerating(false);
     }
+  };
+
+  const handleUploadPlan = (plan: CoursePlan) => {
+    // In a real app, this would be an API call to save the plan to the database
+    const newPlan = {
+      ...plan,
+      id: `course-${Date.now()}`,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: 1,
+      createdBy: currentUser.id,
+    };
+
+    setCoursePlans([newPlan, ...coursePlans]);
+    setActiveTab("my-courses");
+  };
+
+  const handleViewCourse = (course: CoursePlan) => {
+    setSelectedCourse(course);
+    setActiveTab("view-course");
+  };
+
+  const handleApproveCourse = (id: string, comments: string) => {
+    setCoursePlans(
+      coursePlans.map((course) =>
+        course.id === id
+          ? {
+              ...course,
+              status: "approved",
+              comments,
+              updatedAt: new Date().toISOString(),
+            }
+          : course,
+      ),
+    );
+  };
+
+  const handleRejectCourse = (id: string, comments: string) => {
+    setCoursePlans(
+      coursePlans.map((course) =>
+        course.id === id
+          ? {
+              ...course,
+              status: "rejected",
+              comments,
+              updatedAt: new Date().toISOString(),
+            }
+          : course,
+      ),
+    );
   };
 
   return (
@@ -75,35 +151,108 @@ export default function Home() {
               </p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-right">
+              <p className="font-medium">{currentUser.name}</p>
+              <p className="text-muted-foreground capitalize">
+                {currentUser.role}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-12">
-          {/* Input Form Section */}
-          <Card className="md:col-span-4 bg-card">
-            <CardHeader>
-              <CardTitle>Generate Course Plan</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CourseInputForm
-                onGenerate={handleGenerate}
-                isGenerating={isGenerating}
-              />
-            </CardContent>
-          </Card>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-8">
+            <TabsTrigger value="generate">Generate Plan</TabsTrigger>
+            <TabsTrigger value="my-courses">My Course Plans</TabsTrigger>
+            <TabsTrigger value="view-course">View Course</TabsTrigger>
+          </TabsList>
 
-          {/* Preview Section */}
-          <Card className="md:col-span-8 bg-card">
-            <CardHeader>
-              <CardTitle>Course Plan Preview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CoursePlanPreview
-                plan={generatedPlan}
-                isLoading={isGenerating}
-              />
-            </CardContent>
-          </Card>
-        </div>
+          <TabsContent value="generate" className="space-y-8">
+            <div className="grid gap-8 md:grid-cols-12">
+              {/* Input Form Section */}
+              <div className="md:col-span-4 space-y-6">
+                <Card className="bg-card">
+                  <CardHeader>
+                    <CardTitle>Generate Course Plan</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CourseInputForm
+                      onGenerate={handleGenerate}
+                      isGenerating={isGenerating}
+                    />
+                  </CardContent>
+                </Card>
+
+                {generatedPlan && (
+                  <CourseUpload
+                    onUpload={handleUploadPlan}
+                    currentPlan={generatedPlan}
+                  />
+                )}
+              </div>
+
+              {/* Preview Section */}
+              <Card className="md:col-span-8 bg-card">
+                <CardHeader>
+                  <CardTitle>Course Plan Preview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CoursePlanPreview
+                    plan={generatedPlan || undefined}
+                    isLoading={isGenerating}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="my-courses">
+            <Card>
+              <CardHeader>
+                <CardTitle>My Course Plans</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CourseList
+                  courses={coursePlans}
+                  userRole={currentUser.role}
+                  onViewCourse={handleViewCourse}
+                  onApproveCourse={handleApproveCourse}
+                  onRejectCourse={handleRejectCourse}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="view-course">
+            {selectedCourse ? (
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle>Course Plan Details</CardTitle>
+                    <button
+                      onClick={() => setActiveTab("my-courses")}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      Back to List
+                    </button>
+                  </CardHeader>
+                  <CardContent>
+                    <CoursePlanPreview plan={selectedCourse} />
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-10 text-center">
+                  <p className="text-muted-foreground">
+                    Select a course plan to view details
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
 
         {/* Footer */}
         <footer className="mt-12 text-center text-sm text-muted-foreground">
