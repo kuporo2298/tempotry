@@ -13,37 +13,61 @@ import {
 } from "./ui/dialog";
 import { Textarea } from "./ui/textarea";
 import { CoursePlan } from "@/lib/types";
-import { Check, X, Eye, Clock } from "lucide-react";
+import {
+  Check,
+  X,
+  Eye,
+  Clock,
+  AlertCircle,
+  FileEdit,
+  Bell,
+} from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 interface CourseListProps {
   courses: CoursePlan[];
   userRole: "teacher" | "dean";
-  onViewCourse: (course: CoursePlan) => void;
   onApproveCourse?: (id: string, comments: string) => void;
   onRejectCourse?: (id: string, comments: string) => void;
+  onRequestRevision?: (
+    id: string,
+    comments: string,
+    revisionRequests: string[],
+  ) => void;
+  onMarkNotificationRead?: (id: string) => void;
 }
 
 export default function CourseList({
   courses = [],
   userRole = "teacher",
-  onViewCourse = () => {},
   onApproveCourse = () => {},
   onRejectCourse = () => {},
+  onRequestRevision = () => {},
+  onMarkNotificationRead = () => {},
 }: CourseListProps) {
   const [selectedCourse, setSelectedCourse] = useState<CoursePlan | null>(null);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
-  const [reviewType, setReviewType] = useState<"approve" | "reject" | null>(
-    null,
-  );
+  const [reviewType, setReviewType] = useState<
+    "approve" | "reject" | "revision" | null
+  >(null);
   const [comments, setComments] = useState("");
+  const [revisionRequests, setRevisionRequests] = useState<string[]>([]);
+  const [currentRevisionRequest, setCurrentRevisionRequest] = useState("");
 
   const handleOpenReviewDialog = (
     course: CoursePlan,
-    type: "approve" | "reject",
+    type: "approve" | "reject" | "revision",
   ) => {
     setSelectedCourse(course);
     setReviewType(type);
     setComments("");
+    setRevisionRequests([]);
+    setCurrentRevisionRequest("");
     setIsReviewDialogOpen(true);
   };
 
@@ -52,11 +76,28 @@ export default function CourseList({
 
     if (reviewType === "approve") {
       onApproveCourse(selectedCourse.id, comments);
-    } else {
+    } else if (reviewType === "reject") {
       onRejectCourse(selectedCourse.id, comments);
+    } else if (reviewType === "revision") {
+      onRequestRevision(selectedCourse.id, comments, revisionRequests);
     }
 
     setIsReviewDialogOpen(false);
+  };
+
+  const handleAddRevisionRequest = () => {
+    if (currentRevisionRequest.trim()) {
+      setRevisionRequests([...revisionRequests, currentRevisionRequest.trim()]);
+      setCurrentRevisionRequest("");
+    }
+  };
+
+  const handleRemoveRevisionRequest = (index: number) => {
+    setRevisionRequests(revisionRequests.filter((_, i) => i !== index));
+  };
+
+  const handleMarkNotificationRead = (id: string) => {
+    onMarkNotificationRead(id);
   };
 
   const getStatusBadge = (status?: string) => {
@@ -65,6 +106,8 @@ export default function CourseList({
         return <Badge className="bg-green-500">Approved</Badge>;
       case "rejected":
         return <Badge className="bg-red-500">Rejected</Badge>;
+      case "revision":
+        return <Badge className="bg-orange-500">Revision Requested</Badge>;
       case "pending":
       default:
         return <Badge className="bg-yellow-500">Pending Review</Badge>;
@@ -107,7 +150,19 @@ export default function CourseList({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onViewCourse(course)}
+                      onClick={() => {
+                        // Store the selected course in localStorage
+                        localStorage.setItem(
+                          "selectedCourse",
+                          JSON.stringify(course),
+                        );
+                        // Dispatch a custom event to notify that a course was selected
+                        window.dispatchEvent(
+                          new CustomEvent("course-selected", {
+                            detail: course,
+                          }),
+                        );
+                      }}
                     >
                       <Eye className="h-4 w-4 mr-1" /> View
                     </Button>
@@ -127,6 +182,16 @@ export default function CourseList({
                         <Button
                           variant="outline"
                           size="sm"
+                          className="border-orange-500 text-orange-500 hover:bg-orange-50"
+                          onClick={() =>
+                            handleOpenReviewDialog(course, "revision")
+                          }
+                        >
+                          <FileEdit className="h-4 w-4 mr-1" /> Request Revision
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           className="border-red-500 text-red-500 hover:bg-red-50"
                           onClick={() =>
                             handleOpenReviewDialog(course, "reject")
@@ -137,10 +202,41 @@ export default function CourseList({
                       </>
                     )}
 
-                    {userRole === "teacher" && course.status === "pending" && (
-                      <Badge className="bg-yellow-100 text-yellow-800 flex items-center">
-                        <Clock className="h-3 w-3 mr-1" /> Awaiting Review
-                      </Badge>
+                    {userRole === "teacher" && (
+                      <>
+                        {course.status === "pending" && (
+                          <Badge className="bg-yellow-100 text-yellow-800 flex items-center">
+                            <Clock className="h-3 w-3 mr-1" /> Awaiting Review
+                          </Badge>
+                        )}
+                        {(course.status === "approved" ||
+                          course.status === "rejected" ||
+                          course.status === "revision") &&
+                          !course.notificationRead && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-blue-500 text-blue-500 hover:bg-blue-50"
+                                    onClick={() =>
+                                      handleMarkNotificationRead(
+                                        course.id || "",
+                                      )
+                                    }
+                                  >
+                                    <Bell className="h-4 w-4 mr-1" /> New
+                                    Feedback
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Click to mark as read</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -151,6 +247,21 @@ export default function CourseList({
                     <p className="text-gray-600">{course.comments}</p>
                   </div>
                 )}
+
+                {course.revisionRequests &&
+                  course.revisionRequests.length > 0 && (
+                    <div className="mt-3 p-3 bg-orange-50 rounded-md text-sm">
+                      <p className="font-medium flex items-center">
+                        <AlertCircle className="h-4 w-4 mr-1 text-orange-500" />
+                        Revision Requests:
+                      </p>
+                      <ul className="list-disc pl-5 mt-2 text-gray-600">
+                        {course.revisionRequests.map((request, index) => (
+                          <li key={index}>{request}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
               </CardContent>
             </Card>
           ))
@@ -163,7 +274,9 @@ export default function CourseList({
             <DialogTitle>
               {reviewType === "approve"
                 ? "Approve Course Plan"
-                : "Reject Course Plan"}
+                : reviewType === "revision"
+                  ? "Request Revision"
+                  : "Reject Course Plan"}
             </DialogTitle>
           </DialogHeader>
           <div className="py-4">
@@ -176,6 +289,53 @@ export default function CourseList({
               onChange={(e) => setComments(e.target.value)}
               className="min-h-[100px]"
             />
+
+            {reviewType === "revision" && (
+              <div className="mt-4 space-y-4">
+                <p className="text-sm font-medium">
+                  Specific Revision Requests:
+                </p>
+
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add specific revision request"
+                    value={currentRevisionRequest}
+                    onChange={(e) => setCurrentRevisionRequest(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddRevisionRequest}
+                    variant="secondary"
+                  >
+                    Add
+                  </Button>
+                </div>
+
+                {revisionRequests.length > 0 && (
+                  <div className="bg-gray-50 p-3 rounded-md">
+                    <ul className="space-y-2">
+                      {revisionRequests.map((request, index) => (
+                        <li
+                          key={index}
+                          className="flex justify-between items-center text-sm"
+                        >
+                          <span>{request}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveRevisionRequest(index)}
+                            className="h-6 w-6 p-0 text-red-500"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -189,10 +349,17 @@ export default function CourseList({
               className={
                 reviewType === "approve"
                   ? "bg-green-600 hover:bg-green-700"
-                  : "bg-red-600 hover:bg-red-700"
+                  : reviewType === "revision"
+                    ? "bg-orange-600 hover:bg-orange-700"
+                    : "bg-red-600 hover:bg-red-700"
               }
             >
-              {reviewType === "approve" ? "Approve" : "Reject"} Course Plan
+              {reviewType === "approve"
+                ? "Approve"
+                : reviewType === "revision"
+                  ? "Request Revision"
+                  : "Reject"}{" "}
+              Course Plan
             </Button>
           </DialogFooter>
         </DialogContent>

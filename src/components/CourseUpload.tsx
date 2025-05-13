@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import {
   Card,
@@ -12,17 +12,20 @@ import {
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { CoursePlan } from "@/lib/types";
-import { Upload, Check } from "lucide-react";
+import { Upload, Check, AlertCircle, FileEdit } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { useRouter } from "next/navigation";
 
 interface CourseUploadProps {
-  onUpload: (plan: CoursePlan) => void;
   currentPlan?: CoursePlan;
+  latestFeedback?: CoursePlan;
 }
 
 export default function CourseUpload({
-  onUpload = () => {},
   currentPlan,
+  latestFeedback,
 }: CourseUploadProps) {
+  const router = useRouter();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
@@ -33,18 +36,34 @@ export default function CourseUpload({
 
     // Simulate API call
     setTimeout(() => {
-      onUpload({
+      // Create a new plan with the necessary fields
+      const newPlan = {
         ...currentPlan,
+        id: `course-${Date.now()}`,
         status: "pending",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         version: 1,
-      });
+      };
+
+      // Store the plan in localStorage to simulate persistence
+      const existingPlans = JSON.parse(
+        localStorage.getItem("coursePlans") || "[]",
+      );
+      localStorage.setItem(
+        "coursePlans",
+        JSON.stringify([newPlan, ...existingPlans]),
+      );
+
       setIsUploading(false);
       setUploadSuccess(true);
 
       // Reset success message after 3 seconds
-      setTimeout(() => setUploadSuccess(false), 3000);
+      setTimeout(() => {
+        setUploadSuccess(false);
+        // Navigate to the "my-courses" tab
+        window.dispatchEvent(new CustomEvent("course-uploaded"));
+      }, 3000);
     }, 1500);
   };
 
@@ -57,6 +76,74 @@ export default function CourseUpload({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {latestFeedback &&
+            latestFeedback.status === "approved" &&
+            !latestFeedback.notificationRead && (
+              <Alert className="bg-green-50 border-green-200 text-green-800">
+                <Check className="h-4 w-4 text-green-600" />
+                <AlertTitle>Course Plan Approved</AlertTitle>
+                <AlertDescription>
+                  Your course plan has been approved by the department dean.
+                  {latestFeedback.comments && (
+                    <div className="mt-2 text-sm">
+                      <p className="font-medium">Comments:</p>
+                      <p>{latestFeedback.comments}</p>
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+          {latestFeedback &&
+            latestFeedback.status === "rejected" &&
+            !latestFeedback.notificationRead && (
+              <Alert className="bg-red-50 border-red-200 text-red-800">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertTitle>Course Plan Rejected</AlertTitle>
+                <AlertDescription>
+                  Your course plan has been rejected by the department dean.
+                  {latestFeedback.comments && (
+                    <div className="mt-2 text-sm">
+                      <p className="font-medium">Reason:</p>
+                      <p>{latestFeedback.comments}</p>
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+          {latestFeedback &&
+            latestFeedback.status === "revision" &&
+            !latestFeedback.notificationRead && (
+              <Alert className="bg-orange-50 border-orange-200 text-orange-800">
+                <FileEdit className="h-4 w-4 text-orange-600" />
+                <AlertTitle>Revision Requested</AlertTitle>
+                <AlertDescription>
+                  The department dean has requested revisions to your course
+                  plan.
+                  {latestFeedback.comments && (
+                    <div className="mt-2 text-sm">
+                      <p className="font-medium">Comments:</p>
+                      <p>{latestFeedback.comments}</p>
+                    </div>
+                  )}
+                  {latestFeedback.revisionRequests &&
+                    latestFeedback.revisionRequests.length > 0 && (
+                      <div className="mt-2 text-sm">
+                        <p className="font-medium">Requested Changes:</p>
+                        <ul className="list-disc pl-5 mt-1">
+                          {latestFeedback.revisionRequests.map(
+                            (request, index) => (
+                              <li key={index}>{request}</li>
+                            ),
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                </AlertDescription>
+              </Alert>
+            )}
+
           <div className="p-4 bg-blue-50 rounded-md text-sm text-blue-700">
             <p>
               Upload this course plan to the central repository for review by

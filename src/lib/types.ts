@@ -12,12 +12,15 @@ export interface CoursePlan {
     topic: string;
     activities: string;
   }[];
-  status?: "pending" | "approved" | "rejected";
+  status?: "pending" | "approved" | "rejected" | "revision";
   comments?: string;
+  revisionRequests?: string[];
   createdAt?: string;
   updatedAt?: string;
   version?: number;
   createdBy?: string;
+  reviewedBy?: string;
+  notificationRead?: boolean;
 }
 
 export type UserRole = "teacher" | "dean";

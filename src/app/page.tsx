@@ -9,6 +9,7 @@ import CourseList from "@/components/CourseList";
 import CourseUpload from "@/components/CourseUpload";
 import { CoursePlan } from "@/lib/types";
 import { mockCoursePlans, currentUser } from "@/lib/mock-data";
+import { Input } from "@/components/ui/input";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("generate");
@@ -16,6 +17,45 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [coursePlans, setCoursePlans] = useState<CoursePlan[]>(mockCoursePlans);
   const [selectedCourse, setSelectedCourse] = useState<CoursePlan | null>(null);
+  const [latestFeedback, setLatestFeedback] = useState<CoursePlan | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Filter courses based on search term
+  const filteredCoursePlans = coursePlans.filter(
+    (course) =>
+      course.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (course.courseCode &&
+        course.courseCode.toLowerCase().includes(searchTerm.toLowerCase())),
+  );
+
+  // Effect to listen for course upload and selection events
+  useEffect(() => {
+    const handleCourseUploaded = () => {
+      // Get updated course plans from localStorage
+      const storedPlans = JSON.parse(
+        localStorage.getItem("coursePlans") || "[]",
+      );
+      if (storedPlans.length > 0) {
+        setCoursePlans([...storedPlans, ...mockCoursePlans]);
+        setActiveTab("my-courses");
+      }
+    };
+
+    const handleCourseSelected = (event: Event) => {
+      const customEvent = event as CustomEvent<CoursePlan>;
+      setSelectedCourse(customEvent.detail);
+      setActiveTab("view-course");
+    };
+
+    window.addEventListener("course-uploaded", handleCourseUploaded);
+    window.addEventListener("course-selected", handleCourseSelected);
+
+    return () => {
+      window.removeEventListener("course-uploaded", handleCourseUploaded);
+      window.removeEventListener("course-selected", handleCourseSelected);
+    };
+  }, []);
 
   const handleGenerate = async (subject: string, department: string) => {
     setIsGenerating(true);
@@ -82,55 +122,100 @@ export default function Home() {
     }
   };
 
-  const handleUploadPlan = (plan: CoursePlan) => {
-    // In a real app, this would be an API call to save the plan to the database
-    const newPlan = {
-      ...plan,
-      id: `course-${Date.now()}`,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      version: 1,
-      createdBy: currentUser.id,
-    };
+  // This function is no longer needed as the CourseUpload component handles this internally
 
-    setCoursePlans([newPlan, ...coursePlans]);
-    setActiveTab("my-courses");
-  };
-
-  const handleViewCourse = (course: CoursePlan) => {
-    setSelectedCourse(course);
-    setActiveTab("view-course");
-  };
+  // This function is no longer needed as CourseList handles this internally
 
   const handleApproveCourse = (id: string, comments: string) => {
-    setCoursePlans(
-      coursePlans.map((course) =>
-        course.id === id
-          ? {
-              ...course,
-              status: "approved",
-              comments,
-              updatedAt: new Date().toISOString(),
-            }
-          : course,
-      ),
+    const updatedPlans = coursePlans.map((course) =>
+      course.id === id
+        ? {
+            ...course,
+            status: "approved",
+            comments,
+            updatedAt: new Date().toISOString(),
+            reviewedBy: currentUser.name,
+            notificationRead: false,
+          }
+        : course,
     );
+
+    setCoursePlans(updatedPlans);
+
+    // Set latest feedback for notifications
+    const approvedCourse = updatedPlans.find((course) => course.id === id);
+    if (approvedCourse) {
+      setLatestFeedback(approvedCourse);
+    }
   };
 
   const handleRejectCourse = (id: string, comments: string) => {
+    const updatedPlans = coursePlans.map((course) =>
+      course.id === id
+        ? {
+            ...course,
+            status: "rejected",
+            comments,
+            updatedAt: new Date().toISOString(),
+            reviewedBy: currentUser.name,
+            notificationRead: false,
+          }
+        : course,
+    );
+
+    setCoursePlans(updatedPlans);
+
+    // Set latest feedback for notifications
+    const rejectedCourse = updatedPlans.find((course) => course.id === id);
+    if (rejectedCourse) {
+      setLatestFeedback(rejectedCourse);
+    }
+  };
+
+  const handleRequestRevision = (
+    id: string,
+    comments: string,
+    revisionRequests: string[],
+  ) => {
+    const updatedPlans = coursePlans.map((course) =>
+      course.id === id
+        ? {
+            ...course,
+            status: "revision",
+            comments,
+            revisionRequests,
+            updatedAt: new Date().toISOString(),
+            reviewedBy: currentUser.name,
+            notificationRead: false,
+          }
+        : course,
+    );
+
+    setCoursePlans(updatedPlans);
+
+    // Set latest feedback for notifications
+    const revisionCourse = updatedPlans.find((course) => course.id === id);
+    if (revisionCourse) {
+      setLatestFeedback(revisionCourse);
+    }
+  };
+
+  const handleMarkNotificationRead = (id: string) => {
     setCoursePlans(
       coursePlans.map((course) =>
         course.id === id
           ? {
               ...course,
-              status: "rejected",
-              comments,
-              updatedAt: new Date().toISOString(),
+              notificationRead: true,
             }
           : course,
       ),
     );
+
+    // Clear latest feedback if it's the same course
+    if (latestFeedback && latestFeedback.id === id) {
+      setLatestFeedback(null);
+    }
   };
 
   return (
@@ -186,8 +271,8 @@ export default function Home() {
 
                 {generatedPlan && (
                   <CourseUpload
-                    onUpload={handleUploadPlan}
                     currentPlan={generatedPlan}
+                    latestFeedback={latestFeedback || undefined}
                   />
                 )}
               </div>
@@ -213,12 +298,21 @@ export default function Home() {
                 <CardTitle>My Course Plans</CardTitle>
               </CardHeader>
               <CardContent>
+                <div className="mb-4">
+                  <Input
+                    placeholder="Search by course title, department, or code..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-md"
+                  />
+                </div>
                 <CourseList
-                  courses={coursePlans}
+                  courses={filteredCoursePlans}
                   userRole={currentUser.role}
-                  onViewCourse={handleViewCourse}
                   onApproveCourse={handleApproveCourse}
                   onRejectCourse={handleRejectCourse}
+                  onRequestRevision={handleRequestRevision}
+                  onMarkNotificationRead={handleMarkNotificationRead}
                 />
               </CardContent>
             </Card>
