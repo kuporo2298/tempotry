@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "./ui/button";
 import {
   Card,
@@ -28,44 +28,60 @@ export default function CourseUpload({
   const router = useRouter();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleUpload = () => {
+  const handleUpload = useCallback(() => {
+    setError(null);
     if (!currentPlan) return;
 
     setIsUploading(true);
 
     // Simulate API call
     setTimeout(() => {
-      // Create a new plan with the necessary fields
-      const newPlan = {
-        ...currentPlan,
-        id: `course-${Date.now()}`,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        version: 1,
-      };
+      try {
+        // Create a new plan with the necessary fields
+        const newPlan = {
+          ...currentPlan,
+          id: `course-${Date.now()}`,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          version: 1,
+          createdBy: "user-1",
+        };
 
-      // Store the plan in localStorage to simulate persistence
-      const existingPlans = JSON.parse(
-        localStorage.getItem("coursePlans") || "[]",
-      );
-      localStorage.setItem(
-        "coursePlans",
-        JSON.stringify([newPlan, ...existingPlans]),
-      );
+        // Store the plan in localStorage to simulate persistence
+        const existingPlans = JSON.parse(
+          localStorage.getItem("coursePlans") || "[]",
+        );
 
-      setIsUploading(false);
-      setUploadSuccess(true);
+        // Add the new plan to the mock data in memory
+        const updatedPlans = [newPlan, ...existingPlans];
+        localStorage.setItem("coursePlans", JSON.stringify(updatedPlans));
 
-      // Reset success message after 3 seconds
-      setTimeout(() => {
-        setUploadSuccess(false);
-        // Navigate to the "my-courses" tab
-        window.dispatchEvent(new CustomEvent("course-uploaded"));
-      }, 3000);
+        // Update global state by dispatching a custom event with the updated plans
+        window.dispatchEvent(
+          new CustomEvent("course-plans-updated", {
+            detail: updatedPlans,
+          }),
+        );
+
+        setIsUploading(false);
+        setUploadSuccess(true);
+
+        // Reset success message after 3 seconds
+        setTimeout(() => {
+          setUploadSuccess(false);
+          // Navigate to the "my-courses" tab
+          window.dispatchEvent(new CustomEvent("course-uploaded"));
+        }, 3000);
+      } catch (err) {
+        console.error("Error uploading course plan:", err);
+        setIsUploading(false);
+        setError("Failed to upload course plan. Please try again.");
+      }
     }, 1500);
-  };
+  }, [currentPlan]);
 
   return (
     <Card className="w-full bg-white shadow-sm">
@@ -151,6 +167,15 @@ export default function CourseUpload({
               status.
             </p>
           </div>
+
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+              <p className="flex items-center">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                {error}
+              </p>
+            </div>
+          )}
 
           {currentPlan ? (
             <div className="space-y-3">

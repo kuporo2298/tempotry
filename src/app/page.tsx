@@ -30,15 +30,50 @@ export default function Home() {
   );
 
   // Effect to listen for course upload and selection events
+  // Initialize from localStorage on component mount
   useEffect(() => {
-    const handleCourseUploaded = () => {
-      // Get updated course plans from localStorage
+    try {
       const storedPlans = JSON.parse(
         localStorage.getItem("coursePlans") || "[]",
       );
-      if (storedPlans.length > 0) {
-        setCoursePlans([...storedPlans, ...mockCoursePlans]);
-        setActiveTab("my-courses");
+      if (storedPlans && storedPlans.length > 0) {
+        setCoursePlans([
+          ...storedPlans,
+          ...mockCoursePlans.filter(
+            (plan) =>
+              !storedPlans.some((storedPlan) => storedPlan.id === plan.id),
+          ),
+        ]);
+      }
+    } catch (error) {
+      console.error("Error loading stored course plans:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleCourseUploaded = () => {
+      try {
+        // Get updated course plans from localStorage
+        const storedPlans = JSON.parse(
+          localStorage.getItem("coursePlans") || "[]",
+        );
+
+        if (storedPlans && storedPlans.length > 0) {
+          const updatedPlans = [
+            ...storedPlans,
+            ...mockCoursePlans.filter(
+              (plan) =>
+                !storedPlans.some((storedPlan) => storedPlan.id === plan.id),
+            ),
+          ];
+
+          setCoursePlans(updatedPlans);
+          setActiveTab("my-courses");
+
+          console.log("Course plans updated:", updatedPlans);
+        }
+      } catch (error) {
+        console.error("Error handling course upload:", error);
       }
     };
 
@@ -48,12 +83,31 @@ export default function Home() {
       setActiveTab("view-course");
     };
 
+    const handleCoursePlansUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<CoursePlan[]>;
+      const updatedPlans = customEvent.detail;
+
+      // Merge with existing mock data, avoiding duplicates
+      setCoursePlans([
+        ...updatedPlans,
+        ...mockCoursePlans.filter(
+          (plan) =>
+            !updatedPlans.some((updatedPlan) => updatedPlan.id === plan.id),
+        ),
+      ]);
+    };
+
     window.addEventListener("course-uploaded", handleCourseUploaded);
     window.addEventListener("course-selected", handleCourseSelected);
+    window.addEventListener("course-plans-updated", handleCoursePlansUpdated);
 
     return () => {
       window.removeEventListener("course-uploaded", handleCourseUploaded);
       window.removeEventListener("course-selected", handleCourseSelected);
+      window.removeEventListener(
+        "course-plans-updated",
+        handleCoursePlansUpdated,
+      );
     };
   }, []);
 
@@ -147,6 +201,23 @@ export default function Home() {
     if (approvedCourse) {
       setLatestFeedback(approvedCourse);
     }
+
+    // Update localStorage
+    localStorage.setItem(
+      "coursePlans",
+      JSON.stringify(
+        updatedPlans.filter(
+          (plan) => !plan.id?.startsWith("course-") || plan.id === id,
+        ),
+      ),
+    );
+
+    // Broadcast the update to other components
+    window.dispatchEvent(
+      new CustomEvent("course-plans-updated", {
+        detail: updatedPlans,
+      }),
+    );
   };
 
   const handleRejectCourse = (id: string, comments: string) => {
@@ -170,6 +241,23 @@ export default function Home() {
     if (rejectedCourse) {
       setLatestFeedback(rejectedCourse);
     }
+
+    // Update localStorage
+    localStorage.setItem(
+      "coursePlans",
+      JSON.stringify(
+        updatedPlans.filter(
+          (plan) => !plan.id?.startsWith("course-") || plan.id === id,
+        ),
+      ),
+    );
+
+    // Broadcast the update to other components
+    window.dispatchEvent(
+      new CustomEvent("course-plans-updated", {
+        detail: updatedPlans,
+      }),
+    );
   };
 
   const handleRequestRevision = (
@@ -198,24 +286,58 @@ export default function Home() {
     if (revisionCourse) {
       setLatestFeedback(revisionCourse);
     }
+
+    // Update localStorage
+    localStorage.setItem(
+      "coursePlans",
+      JSON.stringify(
+        updatedPlans.filter(
+          (plan) => !plan.id?.startsWith("course-") || plan.id === id,
+        ),
+      ),
+    );
+
+    // Broadcast the update to other components
+    window.dispatchEvent(
+      new CustomEvent("course-plans-updated", {
+        detail: updatedPlans,
+      }),
+    );
   };
 
   const handleMarkNotificationRead = (id: string) => {
-    setCoursePlans(
-      coursePlans.map((course) =>
-        course.id === id
-          ? {
-              ...course,
-              notificationRead: true,
-            }
-          : course,
-      ),
+    const updatedPlans = coursePlans.map((course) =>
+      course.id === id
+        ? {
+            ...course,
+            notificationRead: true,
+          }
+        : course,
     );
+
+    setCoursePlans(updatedPlans);
 
     // Clear latest feedback if it's the same course
     if (latestFeedback && latestFeedback.id === id) {
       setLatestFeedback(null);
     }
+
+    // Update localStorage
+    localStorage.setItem(
+      "coursePlans",
+      JSON.stringify(
+        updatedPlans.filter(
+          (plan) => !plan.id?.startsWith("course-") || plan.id === id,
+        ),
+      ),
+    );
+
+    // Broadcast the update to other components
+    window.dispatchEvent(
+      new CustomEvent("course-plans-updated", {
+        detail: updatedPlans,
+      }),
+    );
   };
 
   return (
