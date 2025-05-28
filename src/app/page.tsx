@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CourseInputForm from "@/components/CourseInputForm";
@@ -12,6 +13,7 @@ import { mockCoursePlans, currentUser } from "@/lib/mock-data";
 import { Input } from "@/components/ui/input";
 
 export default function Home() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("generate");
   const [generatedPlan, setGeneratedPlan] = useState<CoursePlan | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -19,6 +21,50 @@ export default function Home() {
   const [selectedCourse, setSelectedCourse] = useState<CoursePlan | null>(null);
   const [latestFeedback, setLatestFeedback] = useState<CoursePlan | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check authentication status on component mount
+  useEffect(() => {
+    const checkAuth = () => {
+      const authStatus = localStorage.getItem("isAuthenticated");
+      const userRole = localStorage.getItem("userRole");
+      const userName = localStorage.getItem("userName");
+
+      if (!authStatus || authStatus !== "true") {
+        router.push("/login");
+        return;
+      }
+
+      // If user is admin, redirect to admin page
+      if (userRole === "admin") {
+        router.push("/admin");
+        return;
+      }
+
+      setIsAuthenticated(true);
+      setIsLoading(false);
+    };
+
+    checkAuth();
+  }, [router]);
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render the main content if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   // Filter courses based on search term
   const filteredCoursePlans = coursePlans.filter(
@@ -114,65 +160,77 @@ export default function Home() {
   const handleGenerate = async (subject: string, department: string) => {
     setIsGenerating(true);
 
-    // Simulate API call to generate course plan
     try {
-      // In a real implementation, this would be an API call to your backend
-      // that integrates with an LLM to generate the course plan
-      setTimeout(() => {
-        const mockGeneratedPlan = {
-          subject,
-          department,
-          courseCode: `${department.substring(0, 3).toUpperCase()}101`,
-          objectives: [
-            "Understand key concepts and principles related to the subject",
-            "Develop critical thinking and analytical skills in the field",
-            "Apply theoretical knowledge to practical scenarios",
-            "Demonstrate effective communication of subject-related ideas",
-          ],
-          topics: [
-            "Introduction to the subject and its significance",
-            "Historical development and theoretical foundations",
-            "Core principles and methodologies",
-            "Contemporary issues and applications",
-            "Future trends and developments",
-          ],
-          assessmentMethods: [
-            "Written examinations (40%)",
-            "Research papers and assignments (30%)",
-            "Class participation and discussions (15%)",
-            "Group projects and presentations (15%)",
-          ],
-          references: [
-            "Core textbooks relevant to the subject",
-            "Academic journals and research papers",
-            "Online resources and databases",
-            "Case studies and practical examples",
-          ],
-          schedule: [
-            {
-              week: 1,
-              topic: "Introduction to the course",
-              activities: "Lecture, Group Discussion",
-            },
-            {
-              week: 2,
-              topic: "Fundamental concepts",
-              activities: "Lecture, Case Studies",
-            },
-            {
-              week: 3,
-              topic: "Theoretical frameworks",
-              activities: "Lecture, Group Activities",
-            },
-          ],
-        };
+      // Call OpenAI API to generate course plan
+      const response = await fetch("/api/generate-course-plan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ subject, department }),
+      });
 
-        setGeneratedPlan(mockGeneratedPlan);
-        setIsGenerating(false);
-      }, 2000);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const generatedPlan = await response.json();
+      setGeneratedPlan(generatedPlan);
+      setIsGenerating(false);
     } catch (error) {
       console.error("Error generating course plan:", error);
       setIsGenerating(false);
+
+      // Fallback to a basic template if API fails
+      const fallbackPlan = {
+        subject,
+        department,
+        courseCode: `${department.substring(0, 3).toUpperCase()}101`,
+        objectives: [
+          "Understand key concepts and principles related to the subject",
+          "Develop critical thinking and analytical skills in the field",
+          "Apply theoretical knowledge to practical scenarios",
+          "Demonstrate effective communication of subject-related ideas",
+        ],
+        topics: [
+          "Introduction to the subject and its significance",
+          "Historical development and theoretical foundations",
+          "Core principles and methodologies",
+          "Contemporary issues and applications",
+          "Future trends and developments",
+        ],
+        assessmentMethods: [
+          "Written examinations (40%)",
+          "Research papers and assignments (30%)",
+          "Class participation and discussions (15%)",
+          "Group projects and presentations (15%)",
+        ],
+        references: [
+          "Core textbooks relevant to the subject",
+          "Academic journals and research papers",
+          "Online resources and databases",
+          "Case studies and practical examples",
+        ],
+        schedule: [
+          {
+            week: 1,
+            topic: "Introduction to the course",
+            activities: "Lecture, Group Discussion",
+          },
+          {
+            week: 2,
+            topic: "Fundamental concepts",
+            activities: "Lecture, Case Studies",
+          },
+          {
+            week: 3,
+            topic: "Theoretical frameworks",
+            activities: "Lecture, Group Activities",
+          },
+        ],
+      };
+
+      setGeneratedPlan(fallbackPlan);
     }
   };
 

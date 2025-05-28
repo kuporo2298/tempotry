@@ -12,9 +12,10 @@ import {
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { CoursePlan } from "@/lib/types";
-import { Upload, Check, AlertCircle, FileEdit } from "lucide-react";
+import { Upload, Check, AlertCircle, FileEdit, Download } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { useRouter } from "next/navigation";
+import { generateDocx } from "@/lib/docx-generator";
 
 interface CourseUploadProps {
   currentPlan?: CoursePlan;
@@ -198,7 +199,7 @@ export default function CourseUpload({
           )}
         </div>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex flex-col space-y-2">
         <Button
           onClick={handleUpload}
           disabled={!currentPlan || isUploading || uploadSuccess}
@@ -221,6 +222,17 @@ export default function CourseUpload({
             </>
           )}
         </Button>
+
+        {currentPlan && (
+          <Button
+            onClick={() => currentPlan && generateDocx(currentPlan)}
+            variant="outline"
+            className="w-full"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export as DOCX
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
