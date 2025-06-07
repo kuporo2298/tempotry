@@ -30,8 +30,9 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  password?: string;
   approved?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface SignupRequest {
@@ -39,6 +40,5 @@ export interface SignupRequest {
   name: string;
   email: string;
   role: UserRole;
-  password: string;
-  createdAt: string;
+  created_at: string;
 }

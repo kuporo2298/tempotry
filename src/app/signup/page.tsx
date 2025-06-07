@@ -14,7 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { UserRole, SignupRequest } from "@/lib/types";
+import { UserRole } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -33,6 +34,15 @@ export default function SignupPage() {
     setError("");
     setSuccess("");
 
+    // Check if Supabase is configured
+    if (!supabase) {
+      setError(
+        "Database connection not configured. Please contact the administrator to set up the Supabase environment variables.",
+      );
+      setIsLoading(false);
+      return;
+    }
+
     // Basic validation
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -41,41 +51,79 @@ export default function SignupPage() {
     }
 
     try {
-      // Check if email already exists in pending requests
-      const storedRequests = localStorage.getItem("signupRequests");
-      const signupRequests: SignupRequest[] = storedRequests
-        ? JSON.parse(storedRequests)
-        : [];
+      // Check if email already exists in signup requests
+      const { data: existingRequest } = await supabase
+        .from("signup_requests")
+        .select("email")
+        .eq("email", email)
+        .single();
 
-      if (signupRequests.some((request) => request.email === email)) {
+      if (existingRequest) {
         setError("An account with this email is already pending approval");
         setIsLoading(false);
         return;
       }
 
       // Check if email already exists in approved users
-      const storedUsers = localStorage.getItem("users");
-      const users = storedUsers ? JSON.parse(storedUsers) : [];
+      const { data: existingUser } = await supabase
+        .from("users")
+        .select("email")
+        .eq("email", email)
+        .single();
 
-      if (users.some((user) => user.email === email)) {
+      if (existingUser) {
         setError("An account with this email already exists");
         setIsLoading(false);
         return;
       }
 
-      // Create new signup request
-      const newRequest: SignupRequest = {
-        id: `request-${Date.now()}`,
-        name,
+      // Create user in Supabase Auth (but they won't be able to login until approved)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        role,
         password,
-        createdAt: new Date().toISOString(),
-      };
+        options: {
+          data: {
+            name,
+            role,
+          },
+        },
+      });
 
-      // Store signup request in localStorage
-      signupRequests.push(newRequest);
-      localStorage.setItem("signupRequests", JSON.stringify(signupRequests));
+      if (authError) {
+        setError(authError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      // Create signup request in our database
+      const { error: requestError } = await supabase
+        .from("signup_requests")
+        .insert({
+          name,
+          email,
+          role,
+        });
+
+      if (requestError) {
+        console.error("Database error:", requestError);
+        if (
+          requestError.message.includes(
+            'relation "signup_requests" does not exist',
+          )
+        ) {
+          setError(
+            "Database tables are not set up. Please contact the administrator to configure the database.",
+          );
+        } else if (requestError.message.includes("JWT")) {
+          setError(
+            "Database connection error. Please contact the administrator to check the configuration.",
+          );
+        } else {
+          setError(`Failed to create account request: ${requestError.message}`);
+        }
+        setIsLoading(false);
+        return;
+      }
 
       // Show success message
       setSuccess(
@@ -90,7 +138,26 @@ export default function SignupPage() {
       setRole("teacher");
     } catch (err) {
       console.error("Registration error:", err);
-      setError("Failed to create account request. Please try again.");
+      if (err instanceof Error && err.message) {
+        if (err.message.includes("fetch")) {
+          setError(
+            "Network error. Please check your internet connection and try again.",
+          );
+        } else if (
+          err.message.includes("Invalid API key") ||
+          err.message.includes("Invalid JWT")
+        ) {
+          setError(
+            "Database configuration error. Please contact the administrator.",
+          );
+        } else {
+          setError(`Registration failed: ${err.message}`);
+        }
+      } else {
+        setError(
+          "An unexpected error occurred. Please try again or contact the administrator.",
+        );
+      }
     } finally {
       setIsLoading(false);
     }

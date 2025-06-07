@@ -49,6 +49,28 @@ export default function Home() {
     checkAuth();
   }, [router]);
 
+  // Initialize from localStorage on component mount - moved inside this useEffect to ensure consistent hook order
+  useEffect(() => {
+    if (isAuthenticated) {
+      try {
+        const storedPlans = JSON.parse(
+          localStorage.getItem("coursePlans") || "[]",
+        );
+        if (storedPlans && storedPlans.length > 0) {
+          setCoursePlans([
+            ...storedPlans,
+            ...mockCoursePlans.filter(
+              (plan) =>
+                !storedPlans.some((storedPlan) => storedPlan.id === plan.id),
+            ),
+          ]);
+        }
+      } catch (error) {
+        console.error("Error loading stored course plans:", error);
+      }
+    }
+  }, [isAuthenticated]);
+
   // Show loading state while checking authentication
   if (isLoading) {
     return (
@@ -76,28 +98,12 @@ export default function Home() {
   );
 
   // Effect to listen for course upload and selection events
-  // Initialize from localStorage on component mount
-  useEffect(() => {
-    try {
-      const storedPlans = JSON.parse(
-        localStorage.getItem("coursePlans") || "[]",
-      );
-      if (storedPlans && storedPlans.length > 0) {
-        setCoursePlans([
-          ...storedPlans,
-          ...mockCoursePlans.filter(
-            (plan) =>
-              !storedPlans.some((storedPlan) => storedPlan.id === plan.id),
-          ),
-        ]);
-      }
-    } catch (error) {
-      console.error("Error loading stored course plans:", error);
-    }
-  }, []);
 
   useEffect(() => {
+    // Define event handlers regardless of authentication status
     const handleCourseUploaded = () => {
+      if (!isAuthenticated) return;
+
       try {
         // Get updated course plans from localStorage
         const storedPlans = JSON.parse(
@@ -124,12 +130,16 @@ export default function Home() {
     };
 
     const handleCourseSelected = (event: Event) => {
+      if (!isAuthenticated) return;
+
       const customEvent = event as CustomEvent<CoursePlan>;
       setSelectedCourse(customEvent.detail);
       setActiveTab("view-course");
     };
 
     const handleCoursePlansUpdated = (event: Event) => {
+      if (!isAuthenticated) return;
+
       const customEvent = event as CustomEvent<CoursePlan[]>;
       const updatedPlans = customEvent.detail;
 
@@ -143,6 +153,7 @@ export default function Home() {
       ]);
     };
 
+    // Always add and remove event listeners regardless of authentication status
     window.addEventListener("course-uploaded", handleCourseUploaded);
     window.addEventListener("course-selected", handleCourseSelected);
     window.addEventListener("course-plans-updated", handleCoursePlansUpdated);
@@ -155,7 +166,7 @@ export default function Home() {
         handleCoursePlansUpdated,
       );
     };
-  }, []);
+  }, [isAuthenticated]);
 
   const handleGenerate = async (subject: string, department: string) => {
     setIsGenerating(true);

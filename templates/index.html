@@ -1,0 +1,382 @@
+{% extends "base.html" %} {% block title %}Course Planning Dashboard{% endblock
+%} {% block subtitle %}AI-Powered Course Learning Plan Generator{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+  <!-- Tabs -->
+  <div class="mb-8">
+    <div class="border-b border-gray-200">
+      <nav class="-mb-px flex space-x-8">
+        <button
+          onclick="showTab('generate')"
+          id="tab-generate"
+          class="tab-button py-2 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600"
+        >
+          Generate Plan
+        </button>
+        <button
+          onclick="showTab('my-courses')"
+          id="tab-my-courses"
+          class="tab-button py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+        >
+          My Course Plans
+        </button>
+        <button
+          onclick="showTab('view-course')"
+          id="tab-view-course"
+          class="tab-button py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+        >
+          View Course
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Generate Plan Tab -->
+  <div id="content-generate" class="tab-content">
+    <div class="grid gap-8 md:grid-cols-12">
+      <!-- Input Form Section -->
+      <div class="md:col-span-4 space-y-6">
+        <div class="card p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            Generate Course Plan
+          </h3>
+          <form id="course-form" class="space-y-4">
+            <div>
+              <label
+                for="subject"
+                class="block text-sm font-medium text-gray-700 mb-1"
+                >Subject Name</label
+              >
+              <input
+                type="text"
+                id="subject"
+                name="subject"
+                required
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g. Introduction to Computer Science"
+              />
+            </div>
+
+            <div>
+              <label
+                for="department"
+                class="block text-sm font-medium text-gray-700 mb-1"
+                >Department</label
+              >
+              <select
+                id="department"
+                name="department"
+                required
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="Computer Science">Computer Science</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Business Administration">
+                  Business Administration
+                </option>
+                <option value="Education">Education</option>
+                <option value="Arts and Sciences">Arts and Sciences</option>
+                <option value="Nursing">Nursing</option>
+                <option value="Theology">Theology</option>
+              </select>
+            </div>
+
+            <button type="submit" id="generate-btn" class="w-full btn-primary">
+              Generate Learning Plan
+            </button>
+          </form>
+        </div>
+
+        <!-- Upload Section -->
+        <div id="upload-section" class="card p-6" style="display: none">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            Upload to Course Repository
+          </h3>
+          <div class="space-y-4">
+            <div class="p-4 bg-blue-50 rounded-md text-sm text-blue-700">
+              <p>
+                Upload this course plan to the central repository for review by
+                your department dean.
+              </p>
+            </div>
+            <button id="upload-btn" class="w-full btn-primary">
+              <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
+              Upload for Review
+            </button>
+            <button id="export-btn" class="w-full btn-secondary">
+              <i data-lucide="download" class="w-4 h-4 mr-2"></i>
+              Export as DOCX
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview Section -->
+      <div class="md:col-span-8">
+        <div class="card p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            Course Plan Preview
+          </h3>
+          <div id="preview-content" class="text-center text-gray-500 py-12">
+            <i
+              data-lucide="file-text"
+              class="w-12 h-12 mx-auto mb-4 text-gray-400"
+            ></i>
+            <p>Generate a course plan to see the preview</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- My Course Plans Tab -->
+  <div id="content-my-courses" class="tab-content" style="display: none">
+    <div class="card p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">My Course Plans</h3>
+      <div class="mb-4">
+        <input
+          type="text"
+          id="search-courses"
+          placeholder="Search by course title, department, or code..."
+          class="max-w-md px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+      <div id="course-list">
+        {% if course_plans %}
+        <div class="space-y-4">
+          {% for plan in course_plans %}
+          <div
+            class="border border-gray-200 rounded-lg p-4 course-item"
+            data-id="{{ plan.id }}"
+          >
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <h4 class="font-medium text-gray-900">{{ plan.subject }}</h4>
+                <p class="text-sm text-gray-600">{{ plan.department }}</p>
+                <div class="flex items-center mt-2 space-x-4">
+                  <span
+                    class="text-xs px-2 py-1 rounded-full {% if plan.status == 'approved' %}bg-green-100 text-green-800 {% elif plan.status == 'rejected' %}bg-red-100 text-red-800 {% elif plan.status == 'revision' %}bg-orange-100 text-orange-800 {% else %}bg-gray-100 text-gray-800{% endif %}"
+                  >
+                    {{ plan.status.title() }}
+                  </span>
+                  <span class="text-xs text-gray-500">
+                    Created: {{ plan.created_at.strftime('%Y-%m-%d') }}
+                  </span>
+                </div>
+              </div>
+              <button
+                onclick="viewCourse({{ plan.id }})"
+                class="btn-secondary text-sm"
+              >
+                View Details
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-gray-500">
+          <i
+            data-lucide="file-text"
+            class="w-12 h-12 mx-auto mb-4 text-gray-400"
+          ></i>
+          <p>No course plans created yet</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- View Course Tab -->
+  <div id="content-view-course" class="tab-content" style="display: none">
+    <div class="card p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Course Plan Details</h3>
+        <button
+          onclick="showTab('my-courses')"
+          class="text-sm text-blue-600 hover:underline"
+        >
+          Back to List
+        </button>
+      </div>
+      <div id="course-details" class="text-center text-gray-500 py-12">
+        <p>Select a course plan to view details</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  let currentPlan = null;
+
+  // Tab functionality
+  function showTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll(".tab-content").forEach((content) => {
+      content.style.display = "none";
+    });
+
+    // Remove active class from all tabs
+    document.querySelectorAll(".tab-button").forEach((button) => {
+      button.className =
+        "tab-button py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300";
+    });
+
+    // Show selected tab content
+    document.getElementById(`content-${tabName}`).style.display = "block";
+
+    // Add active class to selected tab
+    document.getElementById(`tab-${tabName}`).className =
+      "tab-button py-2 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600";
+  }
+
+  // Course form submission
+  document
+    .getElementById("course-form")
+    .addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const subject = document.getElementById("subject").value;
+      const department = document.getElementById("department").value;
+      const generateBtn = document.getElementById("generate-btn");
+
+      generateBtn.textContent = "Generating...";
+      generateBtn.disabled = true;
+
+      try {
+        const response = await fetch("/api/generate-course-plan", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ subject, department }),
+        });
+
+        if (response.ok) {
+          currentPlan = await response.json();
+          displayPreview(currentPlan);
+          document.getElementById("upload-section").style.display = "block";
+        } else {
+          alert("Failed to generate course plan");
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        alert("Failed to generate course plan");
+      } finally {
+        generateBtn.textContent = "Generate Learning Plan";
+        generateBtn.disabled = false;
+      }
+    });
+
+  // Upload course plan
+  document
+    .getElementById("upload-btn")
+    .addEventListener("click", async function () {
+      if (!currentPlan) return;
+
+      const uploadBtn = this;
+      uploadBtn.textContent = "Uploading...";
+      uploadBtn.disabled = true;
+
+      try {
+        const response = await fetch("/api/upload-course-plan", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(currentPlan),
+        });
+
+        if (response.ok) {
+          alert("Course plan uploaded successfully!");
+          location.reload(); // Refresh to show updated course list
+        } else {
+          alert("Failed to upload course plan");
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        alert("Failed to upload course plan");
+      } finally {
+        uploadBtn.textContent = "Upload for Review";
+        uploadBtn.disabled = false;
+      }
+    });
+
+  // Display preview
+  function displayPreview(plan) {
+    const previewContent = document.getElementById("preview-content");
+
+    previewContent.innerHTML = `
+        <div class="text-left space-y-6">
+            <div>
+                <h4 class="font-semibold text-gray-900 mb-2">Course Information</h4>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div><span class="font-medium">Subject:</span> ${plan.subject}</div>
+                    <div><span class="font-medium">Department:</span> ${plan.department}</div>
+                    <div><span class="font-medium">Course Code:</span> ${plan.courseCode || "Not specified"}</div>
+                </div>
+            </div>
+            
+            <div>
+                <h4 class="font-semibold text-gray-900 mb-2">Learning Objectives</h4>
+                <ul class="list-disc list-inside text-sm space-y-1">
+                    ${plan.objectives.map((obj) => `<li>${obj}</li>`).join("")}
+                </ul>
+            </div>
+            
+            <div>
+                <h4 class="font-semibold text-gray-900 mb-2">Topics</h4>
+                <ul class="list-disc list-inside text-sm space-y-1">
+                    ${plan.topics.map((topic) => `<li>${topic}</li>`).join("")}
+                </ul>
+            </div>
+            
+            <div>
+                <h4 class="font-semibold text-gray-900 mb-2">Assessment Methods</h4>
+                <ul class="list-disc list-inside text-sm space-y-1">
+                    ${plan.assessmentMethods.map((method) => `<li>${method}</li>`).join("")}
+                </ul>
+            </div>
+            
+            <div>
+                <h4 class="font-semibold text-gray-900 mb-2">References</h4>
+                <ul class="list-disc list-inside text-sm space-y-1">
+                    ${plan.references.map((ref) => `<li>${ref}</li>`).join("")}
+                </ul>
+            </div>
+        </div>
+    `;
+  }
+
+  // View course details
+  function viewCourse(planId) {
+    // This would fetch course details and display them
+    // For now, just switch to the view tab
+    showTab("view-course");
+
+    // You would implement the actual course detail fetching here
+    document.getElementById("course-details").innerHTML = `
+        <div class="text-center py-8">
+            <p class="text-gray-500">Loading course details...</p>
+        </div>
+    `;
+  }
+
+  // Search functionality
+  document
+    .getElementById("search-courses")
+    .addEventListener("input", function (e) {
+      const searchTerm = e.target.value.toLowerCase();
+      const courseItems = document.querySelectorAll(".course-item");
+
+      courseItems.forEach((item) => {
+        const text = item.textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+          item.style.display = "block";
+        } else {
+          item.style.display = "none";
+        }
+      });
+    });
+</script>
+{% endblock %}

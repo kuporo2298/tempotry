@@ -1,0 +1,344 @@
+{% extends "base.html" %} {% block title %}Dean Dashboard{% endblock %} {% block
+subtitle %}Dean's Course Plan Review Dashboard{% endblock %} {% block content %}
+<div class="max-w-7xl mx-auto">
+  <!-- Tabs -->
+  <div class="mb-6">
+    <div class="border-b border-gray-200">
+      <nav class="-mb-px flex space-x-8">
+        <button
+          onclick="showTab('pending-review')"
+          id="tab-pending-review"
+          class="tab-button py-2 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600"
+        >
+          Pending Review
+        </button>
+        <button
+          onclick="showTab('reviewed')"
+          id="tab-reviewed"
+          class="tab-button py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+        >
+          Reviewed Courses
+        </button>
+        <button
+          onclick="showTab('view-course')"
+          id="tab-view-course"
+          class="tab-button py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+        >
+          View Course
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Search Bar -->
+  <div class="mb-6">
+    <input
+      type="text"
+      id="search-courses"
+      placeholder="Search by course title, department, or code..."
+      class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    />
+  </div>
+
+  <!-- Pending Review Tab -->
+  <div id="content-pending-review" class="tab-content">
+    <div class="card p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">
+        Pending Course Plans
+      </h3>
+      <div id="pending-courses">
+        {% set pending_plans = course_plans | selectattr('status', 'equalto',
+        'pending') | list %} {% if pending_plans %}
+        <div class="space-y-4">
+          {% for plan in pending_plans %}
+          <div
+            class="border border-gray-200 rounded-lg p-4 course-item"
+            data-id="{{ plan.id }}"
+          >
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <h4 class="font-medium text-gray-900">{{ plan.subject }}</h4>
+                <p class="text-sm text-gray-600">{{ plan.department }}</p>
+                <div class="flex items-center mt-2 space-x-4">
+                  <span
+                    class="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800"
+                  >
+                    {{ plan.status.title() }}
+                  </span>
+                  <span class="text-xs text-gray-500">
+                    Submitted: {{ plan.created_at.strftime('%Y-%m-%d') }}
+                  </span>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  onclick="viewCourse({{ plan.id }})"
+                  class="btn-secondary text-sm"
+                >
+                  View Details
+                </button>
+                <button
+                  onclick="showReviewModal({{ plan.id }}, 'approve')"
+                  class="btn-primary text-sm"
+                >
+                  Approve
+                </button>
+                <button
+                  onclick="showReviewModal({{ plan.id }}, 'reject')"
+                  class="btn-danger text-sm"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-gray-500">
+          <i
+            data-lucide="file-text"
+            class="w-12 h-12 mx-auto mb-4 text-gray-400"
+          ></i>
+          <p>No pending course plans</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Reviewed Courses Tab -->
+  <div id="content-reviewed" class="tab-content" style="display: none">
+    <div class="card p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">
+        Reviewed Course Plans
+      </h3>
+      <div id="reviewed-courses">
+        {% set reviewed_plans = course_plans | rejectattr('status', 'equalto',
+        'pending') | list %} {% if reviewed_plans %}
+        <div class="space-y-4">
+          {% for plan in reviewed_plans %}
+          <div
+            class="border border-gray-200 rounded-lg p-4 course-item"
+            data-id="{{ plan.id }}"
+          >
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <h4 class="font-medium text-gray-900">{{ plan.subject }}</h4>
+                <p class="text-sm text-gray-600">{{ plan.department }}</p>
+                <div class="flex items-center mt-2 space-x-4">
+                  <span
+                    class="text-xs px-2 py-1 rounded-full {% if plan.status == 'approved' %}bg-green-100 text-green-800 {% elif plan.status == 'rejected' %}bg-red-100 text-red-800 {% elif plan.status == 'revision' %}bg-orange-100 text-orange-800 {% else %}bg-gray-100 text-gray-800{% endif %}"
+                  >
+                    {{ plan.status.title() }}
+                  </span>
+                  <span class="text-xs text-gray-500">
+                    Reviewed: {{ plan.updated_at.strftime('%Y-%m-%d') }}
+                  </span>
+                  {% if plan.reviewed_by %}
+                  <span class="text-xs text-gray-500">
+                    by {{ plan.reviewed_by }}
+                  </span>
+                  {% endif %}
+                </div>
+              </div>
+              <button
+                onclick="viewCourse({{ plan.id }})"
+                class="btn-secondary text-sm"
+              >
+                View Details
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-gray-500">
+          <i
+            data-lucide="file-text"
+            class="w-12 h-12 mx-auto mb-4 text-gray-400"
+          ></i>
+          <p>No reviewed course plans</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- View Course Tab -->
+  <div id="content-view-course" class="tab-content" style="display: none">
+    <div class="card p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Course Plan Details</h3>
+        <button
+          onclick="showTab('pending-review')"
+          class="text-sm text-blue-600 hover:underline"
+        >
+          Back to List
+        </button>
+      </div>
+      <div id="course-details" class="text-center text-gray-500 py-12">
+        <p>Select a course plan to view details</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Review Modal -->
+<div
+  id="review-modal"
+  class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center"
+>
+  <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+    <h3 id="modal-title" class="text-lg font-semibold text-gray-900 mb-4">
+      Review Course Plan
+    </h3>
+    <form id="review-form">
+      <div class="mb-4">
+        <label
+          for="comments"
+          class="block text-sm font-medium text-gray-700 mb-1"
+          >Comments</label
+        >
+        <textarea
+          id="comments"
+          name="comments"
+          rows="4"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Add your comments here..."
+        ></textarea>
+      </div>
+      <div class="flex justify-end space-x-2">
+        <button
+          type="button"
+          onclick="closeReviewModal()"
+          class="btn-secondary"
+        >
+          Cancel
+        </button>
+        <button type="submit" id="submit-review" class="btn-primary">
+          Submit
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  let currentReviewPlanId = null;
+  let currentReviewAction = null;
+
+  // Tab functionality
+  function showTab(tabName) {
+    document.querySelectorAll(".tab-content").forEach((content) => {
+      content.style.display = "none";
+    });
+
+    document.querySelectorAll(".tab-button").forEach((button) => {
+      button.className =
+        "tab-button py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300";
+    });
+
+    document.getElementById(`content-${tabName}`).style.display = "block";
+    document.getElementById(`tab-${tabName}`).className =
+      "tab-button py-2 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600";
+  }
+
+  // Show review modal
+  function showReviewModal(planId, action) {
+    currentReviewPlanId = planId;
+    currentReviewAction = action;
+
+    const modal = document.getElementById("review-modal");
+    const title = document.getElementById("modal-title");
+    const submitBtn = document.getElementById("submit-review");
+
+    if (action === "approve") {
+      title.textContent = "Approve Course Plan";
+      submitBtn.textContent = "Approve";
+      submitBtn.className = "btn-primary";
+    } else if (action === "reject") {
+      title.textContent = "Reject Course Plan";
+      submitBtn.textContent = "Reject";
+      submitBtn.className = "btn-danger";
+    }
+
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  }
+
+  // Close review modal
+  function closeReviewModal() {
+    const modal = document.getElementById("review-modal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    document.getElementById("comments").value = "";
+  }
+
+  // Handle review form submission
+  document
+    .getElementById("review-form")
+    .addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const comments = document.getElementById("comments").value;
+      const submitBtn = document.getElementById("submit-review");
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Processing...";
+
+      try {
+        const response = await fetch(
+          `/api/course-plan/${currentReviewPlanId}/${currentReviewAction}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ comments }),
+          },
+        );
+
+        if (response.ok) {
+          alert(`Course plan ${currentReviewAction}d successfully!`);
+          location.reload();
+        } else {
+          alert(`Failed to ${currentReviewAction} course plan`);
+        }
+      } catch (error) {
+        console.error("Error:", error);
+        alert(`Failed to ${currentReviewAction} course plan`);
+      } finally {
+        closeReviewModal();
+      }
+    });
+
+  // View course details
+  function viewCourse(planId) {
+    showTab("view-course");
+    document.getElementById("course-details").innerHTML = `
+        <div class="text-center py-8">
+            <p class="text-gray-500">Loading course details...</p>
+        </div>
+    `;
+    // You would implement the actual course detail fetching here
+  }
+
+  // Search functionality
+  document
+    .getElementById("search-courses")
+    .addEventListener("input", function (e) {
+      const searchTerm = e.target.value.toLowerCase();
+      const courseItems = document.querySelectorAll(".course-item");
+
+      courseItems.forEach((item) => {
+        const text = item.textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+          item.style.display = "block";
+        } else {
+          item.style.display = "none";
+        }
+      });
+    });
+</script>
+{% endblock %}

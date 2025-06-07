@@ -14,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { User } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,7 +30,7 @@ export default function LoginPage() {
 
     try {
       // Check for admin login
-      if (email === "admin" && password === "admin") {
+      if (email === "admin@gmail.com" && password === "admin") {
         localStorage.setItem("isAuthenticated", "true");
         localStorage.setItem("userRole", "admin");
         localStorage.setItem("userName", "Administrator");
@@ -38,17 +38,22 @@ export default function LoginPage() {
         return;
       }
 
-      // Get users from localStorage
-      const storedUsers = localStorage.getItem("users");
-      const users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
+      // Check if Supabase is configured
+      if (!supabase) {
+        setError(
+          "Database connection not configured. Please contact the administrator.",
+        );
+        setIsLoading(false);
+        return;
+      }
 
-      // Find user with matching email and password
-      const user = users.find(
-        (u) =>
-          u.email === email && u.password === password && u.approved === true,
-      );
+      // Sign in with Supabase Auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      if (!user) {
+      if (error) {
         setError(
           "Invalid credentials or your account has not been approved yet.",
         );
@@ -56,17 +61,34 @@ export default function LoginPage() {
         return;
       }
 
-      // Set authentication in localStorage
-      localStorage.setItem("isAuthenticated", "true");
-      localStorage.setItem("userRole", user.role);
-      localStorage.setItem("userName", user.name);
-      localStorage.setItem("userId", user.id);
+      if (data.user) {
+        // Get user details from our users table
+        const { data: userData, error: userError } = await supabase!
+          .from("users")
+          .select("*")
+          .eq("email", email)
+          .eq("approved", true)
+          .single();
 
-      // Redirect based on role
-      if (user.role === "dean") {
-        router.push("/dean");
-      } else {
-        router.push("/");
+        if (userError || !userData) {
+          setError("Your account has not been approved yet.");
+          await supabase!.auth.signOut();
+          setIsLoading(false);
+          return;
+        }
+
+        // Set authentication in localStorage
+        localStorage.setItem("isAuthenticated", "true");
+        localStorage.setItem("userRole", userData.role);
+        localStorage.setItem("userName", userData.name);
+        localStorage.setItem("userId", userData.id);
+
+        // Redirect based on role
+        if (userData.role === "dean") {
+          router.push("/dean");
+        } else {
+          router.push("/");
+        }
       }
     } catch (err) {
       console.error("Login error:", err);

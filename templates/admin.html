@@ -1,0 +1,171 @@
+{% extends "base.html" %} {% block title %}Admin Dashboard{% endblock %} {%
+block subtitle %}Admin Dashboard{% endblock %} {% block content %}
+<div class="max-w-7xl mx-auto">
+  <!-- Tabs -->
+  <div class="mb-6">
+    <div class="border-b border-gray-200">
+      <nav class="-mb-px flex space-x-8">
+        <button
+          onclick="showTab('pending')"
+          id="tab-pending"
+          class="tab-button py-2 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600"
+        >
+          Pending Requests {% if signup_requests %}
+          <span
+            class="ml-2 bg-blue-600 text-white rounded-full px-2 py-0.5 text-xs"
+          >
+            {{ signup_requests|length }}
+          </span>
+          {% endif %}
+        </button>
+        <button
+          onclick="showTab('approved')"
+          id="tab-approved"
+          class="tab-button py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+        >
+          Approved Users {% if users %}
+          <span
+            class="ml-2 bg-gray-200 text-gray-700 rounded-full px-2 py-0.5 text-xs"
+          >
+            {{ users|length }}
+          </span>
+          {% endif %}
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Pending Requests Tab -->
+  <div id="content-pending" class="tab-content">
+    <div class="card p-6">
+      <div class="mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">
+          Pending Account Requests
+        </h3>
+        <p class="text-gray-600">
+          Review and approve or reject user signup requests
+        </p>
+      </div>
+
+      {% if signup_requests %}
+      <div class="space-y-4">
+        {% for request in signup_requests %}
+        <div
+          class="border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+        >
+          <div>
+            <h4 class="font-medium text-gray-900">{{ request.name }}</h4>
+            <p class="text-sm text-gray-600">{{ request.email }}</p>
+            <div class="flex items-center mt-1">
+              <span
+                class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full capitalize"
+              >
+                {{ request.role }}
+              </span>
+              <span class="text-xs text-gray-500 ml-2">
+                Requested: {{ request.created_at.strftime('%Y-%m-%d') }}
+              </span>
+            </div>
+          </div>
+          <div class="flex gap-2 self-end md:self-center">
+            <form
+              method="POST"
+              action="{{ url_for('reject_user', request_id=request.id) }}"
+              class="inline"
+            >
+              <button
+                type="submit"
+                class="btn-danger text-sm"
+                onclick="return confirm('Are you sure you want to reject this request?')"
+              >
+                Reject
+              </button>
+            </form>
+            <form
+              method="POST"
+              action="{{ url_for('approve_user', request_id=request.id) }}"
+              class="inline"
+            >
+              <button
+                type="submit"
+                class="btn-primary text-sm"
+                onclick="return confirm('Are you sure you want to approve this user?')"
+              >
+                Approve
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-8 text-gray-500">
+        <i data-lucide="users" class="w-12 h-12 mx-auto mb-4 text-gray-400"></i>
+        <p>No pending signup requests</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Approved Users Tab -->
+  <div id="content-approved" class="tab-content" style="display: none">
+    <div class="card p-6">
+      <div class="mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Approved Users</h3>
+        <p class="text-gray-600">List of all approved users in the system</p>
+      </div>
+
+      {% if users %}
+      <div class="space-y-4">
+        {% for user in users %}
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div>
+            <h4 class="font-medium text-gray-900">{{ user.name }}</h4>
+            <p class="text-sm text-gray-600">{{ user.email }}</p>
+            <div class="flex items-center mt-1">
+              <span
+                class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full capitalize"
+              >
+                {{ user.role }}
+              </span>
+              <span class="text-xs text-gray-500 ml-2">
+                Approved: {{ user.created_at.strftime('%Y-%m-%d') }}
+              </span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-8 text-gray-500">
+        <i data-lucide="users" class="w-12 h-12 mx-auto mb-4 text-gray-400"></i>
+        <p>No approved users yet</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  // Tab functionality
+  function showTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll(".tab-content").forEach((content) => {
+      content.style.display = "none";
+    });
+
+    // Remove active class from all tabs
+    document.querySelectorAll(".tab-button").forEach((button) => {
+      button.className =
+        "tab-button py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300";
+    });
+
+    // Show selected tab content
+    document.getElementById(`content-${tabName}`).style.display = "block";
+
+    // Add active class to selected tab
+    document.getElementById(`tab-${tabName}`).className =
+      "tab-button py-2 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600";
+  }
+</script>
+{% endblock %}

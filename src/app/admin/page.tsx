@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SignupRequest, User } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -38,54 +39,121 @@ export default function AdminPage() {
     checkAuth();
   }, [router]);
 
-  const loadData = () => {
+  const loadData = async () => {
     setIsLoading(true);
 
-    // Load signup requests
-    const storedRequests = localStorage.getItem("signupRequests");
-    const requests: SignupRequest[] = storedRequests
-      ? JSON.parse(storedRequests)
-      : [];
-    setSignupRequests(requests);
+    // Check if Supabase is configured
+    if (!supabase) {
+      console.error("Supabase not configured");
+      setIsLoading(false);
+      return;
+    }
 
-    // Load users
-    const storedUsers = localStorage.getItem("users");
-    const usersList: User[] = storedUsers ? JSON.parse(storedUsers) : [];
-    setUsers(usersList);
+    try {
+      // Load signup requests from Supabase
+      const { data: requests, error: requestsError } = await supabase
+        .from("signup_requests")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    setIsLoading(false);
+      if (requestsError) {
+        console.error("Error loading signup requests:", requestsError);
+      } else {
+        setSignupRequests(requests || []);
+      }
+
+      // Load users from Supabase
+      const { data: usersList, error: usersError } = await supabase
+        .from("users")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (usersError) {
+        console.error("Error loading users:", usersError);
+      } else {
+        setUsers(usersList || []);
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleApprove = (request: SignupRequest) => {
-    // Create new user from request
-    const newUser: User = {
-      id: `user-${Date.now()}`,
-      name: request.name,
-      email: request.email,
-      role: request.role,
-      password: request.password,
-      approved: true,
-    };
+  const handleApprove = async (request: SignupRequest) => {
+    if (!supabase) {
+      console.error("Supabase not configured");
+      return;
+    }
 
-    // Add user to users list
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    localStorage.setItem("users", JSON.stringify(updatedUsers));
+    try {
+      // Create new user in users table
+      const { data: newUser, error: userError } = await supabase
+        .from("users")
+        .insert({
+          name: request.name,
+          email: request.email,
+          role: request.role,
+          approved: true,
+        })
+        .select()
+        .single();
 
-    // Remove request from pending requests
-    const updatedRequests = signupRequests.filter((r) => r.id !== request.id);
-    setSignupRequests(updatedRequests);
-    localStorage.setItem("signupRequests", JSON.stringify(updatedRequests));
+      if (userError) {
+        console.error("Error creating user:", userError);
+        return;
+      }
+
+      // Remove request from signup_requests table
+      const { error: deleteError } = await supabase
+        .from("signup_requests")
+        .delete()
+        .eq("id", request.id);
+
+      if (deleteError) {
+        console.error("Error deleting signup request:", deleteError);
+        return;
+      }
+
+      // Update local state
+      setUsers([...users, newUser]);
+      setSignupRequests(signupRequests.filter((r) => r.id !== request.id));
+    } catch (error) {
+      console.error("Error approving user:", error);
+    }
   };
 
-  const handleReject = (request: SignupRequest) => {
-    // Remove request from pending requests
-    const updatedRequests = signupRequests.filter((r) => r.id !== request.id);
-    setSignupRequests(updatedRequests);
-    localStorage.setItem("signupRequests", JSON.stringify(updatedRequests));
+  const handleReject = async (request: SignupRequest) => {
+    if (!supabase) {
+      console.error("Supabase not configured");
+      return;
+    }
+
+    try {
+      // Remove request from signup_requests table
+      const { error: deleteError } = await supabase
+        .from("signup_requests")
+        .delete()
+        .eq("id", request.id);
+
+      if (deleteError) {
+        console.error("Error deleting signup request:", deleteError);
+        return;
+      }
+
+      // Also remove from Supabase Auth if they were created there
+      // Note: In a production app, you might want to handle this differently
+      // as you can't easily delete users from Supabase Auth via client-side code
+
+      // Update local state
+      setSignupRequests(signupRequests.filter((r) => r.id !== request.id));
+    } catch (error) {
+      console.error("Error rejecting user:", error);
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem("isAuthenticated");
     localStorage.removeItem("userRole");
     localStorage.removeItem("userName");
@@ -192,7 +260,9 @@ export default function AdminPage() {
                             </span>
                             <span className="text-xs text-muted-foreground ml-2">
                               Requested:{" "}
-                              {new Date(request.createdAt).toLocaleDateString()}
+                              {new Date(
+                                request.created_at,
+                              ).toLocaleDateString()}
                             </span>
                           </div>
                         </div>
